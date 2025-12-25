@@ -1,1 +1,844 @@
 
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bonding Optimizer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-app: #0f172a;
+            --bg-sidebar: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6; 
+            --accent-hover: #2563eb;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --border: #334155;
+            --input-bg: #334155;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0; display: flex; height: 100vh;
+            background-color: var(--bg-app); 
+            color: var(--text-main);
+            overflow: hidden; user-select: none;
+        }
+
+        /* Sidebar */
+        #sidebar {
+            width: 340px; min-width: 340px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; padding: 24px;
+            z-index: 100; box-shadow: 4px 0 20px rgba(0,0,0,0.5);
+            overflow-y: auto;
+        }
+
+        .brand-container {
+            display: flex; align-items: center; gap: 12px; margin-bottom: 24px;
+            padding-bottom: 20px; border-bottom: 1px solid var(--border);
+        }
+        .brand-icon { width: 32px; height: 32px; filter: drop-shadow(0 0 5px var(--accent)); }
+        .brand { font-size: 1.3rem; font-weight: 800; color: #fff; letter-spacing: -0.02em; }
+
+        .section-header {
+            font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em;
+            color: var(--text-muted); margin: 20px 0 12px 0; font-weight: 700;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .section-header::after { content: ''; flex: 1; height: 1px; background: var(--border); opacity: 0.5; }
+
+        /* Inputs */
+        .config-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;
+        }
+        .input-group { display: flex; flex-direction: column; gap: 4px; }
+        .input-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 600; }
+        .input-field {
+            background: var(--input-bg); border: 1px solid var(--border);
+            color: #fff; padding: 8px; border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;
+            outline: none; transition: border-color 0.2s;
+        }
+        .input-field:focus { border-color: var(--accent); }
+
+        /* Buttons */
+        .btn-primary {
+            width: 100%; padding: 14px; background: var(--accent);
+            color: white; border: none; border-radius: 8px;
+            font-size: 0.95rem; font-weight: 700; cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            margin-bottom: 20px;
+        }
+        .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+        .btn-update { background: #475569; margin-bottom: 10px; font-size: 0.85rem; padding: 10px; }
+        .btn-update:hover { background: #64748b; }
+
+        .btn-group { display: flex; gap: 8px; margin-bottom: 10px; }
+        .btn-secondary {
+            flex: 1; padding: 8px; background: rgba(255,255,255,0.05);
+            color: var(--text-muted); border: 1px solid var(--border);
+            border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover { background: rgba(255,255,255,0.1); color: #fff; border-color: var(--text-muted); }
+
+        /* Toggles */
+        .toggle-container {
+            display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+            padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border);
+        }
+        .toggle-switch { position: relative; width: 40px; height: 22px; display: inline-block; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #475569; transition: .3s; border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 16px; width: 16px;
+            left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%;
+        }
+        input:checked + .slider { background-color: var(--warning); }
+        input:checked + .slider:before { transform: translateX(18px); }
+        .toggle-label { font-size: 0.85rem; font-weight: 600; color: #fff; }
+
+        /* Stats */
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stat-item { background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; border: 1px solid var(--border); }
+        .stat-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; }
+        .stat-val { font-family: 'JetBrains Mono', monospace; font-size: 1.1rem; font-weight: 700; margin-top: 4px; color: #fff; }
+        .stat-val.bad { color: var(--danger); }
+        .stat-val.good { color: var(--success); }
+
+        /* List */
+        #connection-list { display: flex; flex-direction: column; gap: 10px; overflow-y: auto; flex-grow: 1; min-height: 100px; }
+        .dev-card { background: rgba(0,0,0,0.2); border-radius: 6px; border: 1px solid var(--border); overflow: hidden; }
+        .dev-card.error { border-color: var(--danger); }
+        .dev-title {
+            background: rgba(255,255,255,0.05); padding: 6px 12px; font-size: 0.8rem; font-weight: 700;
+            display: flex; justify-content: space-between; align-items: center; color: #fff;
+        }
+        .wire-row {
+            padding: 6px 12px; border-top: 1px solid var(--border);
+            font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted);
+            display: flex; align-items: center; justify-content: space-between;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .wire-row:hover { background: rgba(255,255,255,0.05); color: #fff; }
+        .role-tag { font-weight: bold; margin-right: 4px; }
+        .role-G { color: #eab308; }
+        .role-S, .role-D { color: var(--accent); }
+
+        /* Canvas Area */
+        #canvas-wrapper {
+            flex-grow: 1; position: relative; 
+            background-color: #0f172a; 
+            background-image: 
+                radial-gradient(rgba(255,255,255,0.1) 1px, transparent 1px),
+                linear-gradient(to bottom, #0f172a, #1e293b);
+            background-size: 20px 20px, 100% 100%;
+            display: flex; justify-content: center; align-items: center; overflow: hidden;
+        }
+        canvas { border-radius: 4px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); background: rgba(15, 23, 42, 0.8); }
+        
+        #edit-mode-overlay {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.6);
+            color: #fbbf24; padding: 10px 20px; border-radius: 20px;
+            font-size: 0.85rem; font-weight: 700; pointer-events: none; display: none; backdrop-filter: blur(4px);
+        }
+        
+        #toast-container {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: 300px; z-index: 200;
+        }
+        .toast {
+            background: #1e293b; border: 1px solid var(--border); color: #fff; padding: 12px 20px; border-radius: 50px;
+            font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); opacity: 0; transform: translateY(20px); transition: all 0.3s;
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.error { border-color: var(--danger); color: #fca5a5; }
+        .toast.success { border-color: var(--success); color: #86efac; }
+        
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div id="sidebar">
+    <div class="brand-container">
+        <img src="https://cdn-icons-png.flaticon.com/512/8886/8886951.png" class="brand-icon" alt="Icon">
+        <div class="brand">Bonding Optimizer</div>
+    </div>
+    
+    <div class="section-header">Configuration</div>
+    <div class="config-grid">
+        <div class="input-group">
+            <label class="input-label">Grid Size</label>
+            <input type="number" id="inp-grid-size" class="input-field" value="7" min="3" max="50">
+        </div>
+        <div class="input-group">
+            <label class="input-label">Pads / Side</label>
+            <input type="number" id="inp-pad-count" class="input-field" value="6" min="1" max="50">
+        </div>
+        <div class="input-group">
+            <label class="input-label">Dev Width</label>
+            <input type="number" id="inp-dev-w" class="input-field" value="7" min="1" max="50">
+        </div>
+        <div class="input-group">
+            <label class="input-label">Dev Height</label>
+            <input type="number" id="inp-dev-h" class="input-field" value="7" min="1" max="50">
+        </div>
+        <div class="input-group" style="grid-column: span 2;">
+            <label class="input-label">Pad Distance (Frame Size)</label>
+            <input type="number" id="inp-pad-dist" class="input-field" value="2.0" min="0.5" step="0.5" max="50.0">
+        </div>
+    </div>
+    <button class="btn-primary btn-update" onclick="app.updateConfig()">Update Layout</button>
+
+    <div class="section-header">Save / Load</div>
+    <div class="btn-group">
+        <button class="btn-secondary" onclick="app.exportState()">Copy</button>
+        <button class="btn-secondary" onclick="app.importState()">Paste</button>
+    </div>
+
+    <div class="section-header">Controls</div>
+    <div class="toggle-container">
+        <label class="toggle-switch">
+            <input type="checkbox" id="chk-move-pads">
+            <span class="slider"></span>
+        </label>
+        <div style="display:flex; flex-direction:column;">
+            <span class="toggle-label">Edit Mode</span>
+        </div>
+    </div>
+
+    <button id="btn-calc" class="btn-primary">Optimize Layout (SA)</button>
+
+    <div class="section-header">Stats</div>
+    <div class="stats-grid">
+        <div class="stat-item">
+            <div class="stat-label">Crossings</div>
+            <div class="stat-val" id="val-cross">-</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-label">Crit. Miss</div>
+            <div class="stat-val" id="val-crit">-</div>
+        </div>
+        <div class="stat-item" style="grid-column: span 2;">
+            <div class="stat-label">Est. Wire Length (mm)</div>
+            <div class="stat-val" id="val-len">-</div>
+        </div>
+    </div>
+
+    <div class="section-header">Connections</div>
+    <div id="connection-list">
+        <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 0.8rem; opacity: 0.6;">
+            Ready.
+        </div>
+    </div>
+</div>
+
+<div id="canvas-wrapper">
+    <canvas id="mainCanvas"></canvas>
+    
+    <div id="edit-mode-overlay">
+        EDIT MODE ACTIVE<br>
+        <span style="font-size:0.75em; font-weight:400; opacity:0.9;">Drag Pads / Right Click: Shape</span>
+    </div>
+
+    <div id="toast-container">
+        <div id="toast-cross" class="toast error"><span>⚠️</span> Crossing Detected</div>
+        <div id="toast-rf" class="toast error"><span>⚠️</span> Missing RF</div>
+        <div id="toast-copy" class="toast success"><span>📋</span> Copied!</div>
+    </div>
+</div>
+
+<script>
+/* =========================================
+   CORE LOGIC
+   ========================================= */
+const THEME = {
+    GRID_1: 'rgba(255, 255, 255, 0.05)', GRID_2: 'rgba(255, 255, 255, 0.02)', GRID_BORDER: '#475569', 
+    PAD_G: '#22c55e', PAD_X: '#ef4444', PAD_RF: '#3b82f6',
+    PIN_OFF: '#64748b', PIN_G: '#eab308', PIN_RF: '#3b82f6',
+    WIRE_G: '#f59e0b', WIRE_RF: '#3b82f6',
+    DEV_BODY: 'rgba(51, 65, 85, 0.4)', DEV_BORDER: '#94a3b8', DEV_SEL: '#8b5cf6', 
+    HIGHLIGHT: '#d946ef', EDIT_PAD_BORDER: '#f59e0b', BOND_PT: '#ffffff'
+};
+
+const dist = (x1, y1, x2, y2) => Math.hypot(x1-x2, y1-y2);
+const checkIntersection = (p1, p2, p3, p4) => {
+    const d = (p2.x - p1.x) * (p4.y - p3.y) - (p2.y - p1.y) * (p4.x - p3.x);
+    if (Math.abs(d) < 1e-9) return false; 
+    const u = ((p3.x - p1.x) * (p4.y - p3.y) - (p3.y - p1.y) * (p4.x - p3.x)) / d;
+    const v = ((p3.x - p1.x) * (p2.y - p1.y) - (p3.y - p1.y) * (p2.x - p1.x)) / d;
+    return (u > 0.001 && u < 0.999) && (v > 0.001 && v < 0.999);
+};
+const getNearestPointOnPad = (src, pad) => {
+    let nx, ny;
+    if (pad.shape === 'rect') {
+        const hW = pad.w / 2; const hH = pad.h / 2;
+        nx = Math.max(pad.x - hW, Math.min(pad.x + hW, src.x));
+        ny = Math.max(pad.y - hH, Math.min(pad.y + hH, src.y));
+    } else { 
+        const angle = Math.atan2(src.y - pad.y, src.x - pad.x);
+        const a = pad.w / 2; const b = pad.h / 2;
+        const r = (a*b) / Math.sqrt(Math.pow(b*Math.cos(angle),2) + Math.pow(a*Math.sin(angle),2));
+        nx = pad.x + Math.cos(angle) * r;
+        ny = pad.y + Math.sin(angle) * r;
+    }
+    return { x: nx, y: ny };
+};
+
+/* =========================================
+   OPTIMIZER
+   ========================================= */
+class LayoutOptimizer {
+    constructor(devices, pads, padStatus) {
+        this.pins = []; this.pads = []; this.deviceGroups = {}; 
+        devices.forEach((d, dIdx) => {
+            this.deviceGroups[dIdx] = [];
+            d.getAbsPins().forEach((p) => {
+                if (p.active) {
+                    const idx = this.pins.length;
+                    this.pins.push({ idx: idx, x: p.x, y: p.y, role: p.role, devIdx: dIdx, origPinIdx: p.index });
+                    this.deviceGroups[dIdx].push(idx);
+                }
+            });
+        });
+        pads.forEach((p, i) => {
+            const st = padStatus[i];
+            if (st !== 1) { 
+                this.pads.push({ idx: this.pads.length, origIdx: i, x: p.x, y: p.y, w: p.w, h: p.h, shape: p.shape, status: st, lbl: p.lbl });
+            }
+        });
+        this.allowedPads = this.pins.map(pin => {
+            return this.pads.filter(pad => {
+                if (pin.role === 'G') return pad.status === 0;
+                return true; 
+            }).map(p => p.idx);
+        });
+    }
+
+    solve() {
+        const N = this.pins.length;
+        if (N === 0) return { lines: [], stats: { cross:0, crit:0, len:0 } };
+        let bestGlobalAssign = null; let bestGlobalCost = Infinity; const ATTEMPTS = 15; 
+        for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+            const result = this.runSA(N);
+            if (result.cost < bestGlobalCost) { bestGlobalCost = result.cost; bestGlobalAssign = result.assign; }
+        }
+        const finalLines = this.resolveLandingPoints(bestGlobalAssign);
+        const finalStats = this.calculateStats(finalLines);
+        return { lines: finalLines, stats: finalStats };
+    }
+
+    runSA(N) {
+        let currentAssign = new Array(N).fill(-1); let usedPads = new Set();
+        const pinOrder = this.pins.map(p => p.idx).sort((a,b) => {
+            const ra = ['S','D'].includes(this.pins[a].role); const rb = ['S','D'].includes(this.pins[b].role);
+            return (ra === rb) ? 0 : (ra ? -1 : 1);
+        });
+        pinOrder.forEach(pIdx => {
+            const pin = this.pins[pIdx]; const allowed = this.allowedPads[pIdx];
+            let bestP = -1, minCost = Infinity;
+            const shuffledAllowed = [...allowed].sort(() => Math.random() - 0.5);
+            shuffledAllowed.forEach(padIdx => {
+                if (usedPads.has(padIdx)) return;
+                const pad = this.pads[padIdx];
+                let c = dist(pin.x, pin.y, pad.x, pad.y);
+                if (['S','D'].includes(pin.role) && pad.status === 2) c -= 5000;
+                if (c < minCost) { minCost = c; bestP = padIdx; }
+            });
+            if (bestP !== -1) { currentAssign[pIdx] = bestP; usedPads.add(bestP); }
+        });
+
+        let currentCostVal = this.calculateCostValue(currentAssign);
+        let bestAssign = [...currentAssign]; let bestCostVal = currentCostVal;
+        let temp = 100.0; const coolingRate = 0.95; const iterPerTemp = Math.max(30, N * 5);
+
+        while (temp > 0.1) {
+            for (let k = 0; k < iterPerTemp; k++) {
+                const newAssign = [...currentAssign]; const mode = Math.random(); let changed = false;
+                if (mode < 0.5 && N > 1) { 
+                    const i = Math.floor(Math.random() * N); const j = Math.floor(Math.random() * N);
+                    if (i !== j && newAssign[i] !== -1 && newAssign[j] !== -1) {
+                        const p1 = newAssign[i], p2 = newAssign[j];
+                        if (this.allowedPads[i].includes(p2) && this.allowedPads[j].includes(p1)) {
+                            newAssign[i] = p2; newAssign[j] = p1; changed = true;
+                        }
+                    }
+                } else { 
+                    const i = Math.floor(Math.random() * N);
+                    if (newAssign[i] !== -1) {
+                        const currentUsed = new Set(newAssign.filter(x => x !== -1));
+                        const candidates = this.allowedPads[i].filter(pid => !currentUsed.has(pid));
+                        if (candidates.length > 0) {
+                            newAssign[i] = candidates[Math.floor(Math.random() * candidates.length)]; changed = true;
+                        }
+                    }
+                }
+                if (changed) {
+                    const newCostVal = this.calculateCostValue(newAssign);
+                    const delta = newCostVal - currentCostVal;
+                    if (delta < 0 || Math.random() < Math.exp(-delta / temp)) {
+                        currentAssign = newAssign; currentCostVal = newCostVal;
+                        if (currentCostVal < bestCostVal) { bestAssign = [...currentAssign]; bestCostVal = currentCostVal; }
+                    }
+                }
+            }
+            temp *= coolingRate;
+        }
+        return { assign: bestAssign, cost: bestCostVal };
+    }
+
+    calculateCostValue(assign) {
+        const W_CRIT = 1e9; const W_CROSS = 1e6; const W_PREF = 1e4; const W_LEN = 1.0;
+        let len = 0, prefPenalty = 0, crit = 0, cross = 0; let devHasRF = {}; const segments = [];
+        for(let i=0; i<assign.length; i++) {
+            const padIdx = assign[i];
+            if (padIdx === -1) { crit++; continue; }
+            const pin = this.pins[i]; const pad = this.pads[padIdx];
+            len += dist(pin.x, pin.y, pad.x, pad.y);
+            segments.push({ x1: pin.x, y1: pin.y, x2: pad.x, y2: pad.y, idx: i });
+            if (['S','D'].includes(pin.role)) {
+                if (pad.status === 2) devHasRF[pin.devIdx] = true; else prefPenalty++;
+            }
+        }
+        Object.keys(this.deviceGroups).forEach(dIdx => {
+            const groupPins = this.deviceGroups[dIdx];
+            const hasActiveRF = groupPins.some(pidx => ['S','D'].includes(this.pins[pidx].role));
+            if (hasActiveRF && !devHasRF[dIdx]) crit++;
+        });
+        const sc = segments.length;
+        for(let i=0; i<sc; i++) {
+            for(let j=i+1; j<sc; j++) {
+                if(checkIntersection({x:segments[i].x1, y:segments[i].y1}, {x:segments[i].x2, y:segments[i].y2}, {x:segments[j].x1, y:segments[j].y1}, {x:segments[j].x2, y:segments[j].y2})) cross++;
+            }
+        }
+        return (crit * W_CRIT) + (cross * W_CROSS) + (prefPenalty * W_PREF) + (len * W_LEN);
+    }
+
+    resolveLandingPoints(assign) {
+        if (!assign) return [];
+        const padToPins = {}; 
+        assign.forEach((padIdx, pinIdx) => {
+            if (padIdx === -1) return;
+            if (!padToPins[padIdx]) padToPins[padIdx] = [];
+            padToPins[padIdx].push(pinIdx);
+        });
+        const lines = [];
+        Object.keys(padToPins).forEach(pKey => {
+            const padIdx = parseInt(pKey); const pad = this.pads[padIdx]; const pinIndices = padToPins[padIdx];
+            pinIndices.forEach(pidx => {
+                const pin = this.pins[pidx];
+                const pt = getNearestPointOnPad({x:pin.x, y:pin.y}, pad);
+                const isRFWire = ['S','D'].includes(pin.role) && pad.status === 2;
+                lines.push({ start: {x: pin.x, y: pin.y}, end: {x: pt.x, y: pt.y}, type: isRFWire ? 'RF' : 'Gate', devIdx: pin.devIdx, pinIdx: pin.origPinIdx, role: pin.role, padLbl: pad.lbl });
+            });
+        });
+        return lines;
+    }
+
+    calculateStats(lines) {
+        let len = 0, cross = 0, crit = 0;
+        lines.forEach(l => { len += dist(l.start.x, l.start.y, l.end.x, l.end.y); });
+        for(let i=0; i<lines.length; i++) {
+            for(let j=i+1; j<lines.length; j++) {
+                const l1 = lines[i], l2 = lines[j];
+                if (dist(l1.end.x, l1.end.y, l2.end.x, l2.end.y) < 0.5) continue;
+                if (dist(l1.start.x, l1.start.y, l2.start.x, l2.start.y) < 0.1) continue;
+                if(checkIntersection(l1.start, l1.end, l2.start, l2.end)) cross++;
+            }
+        }
+        const deviceIndices = [...new Set(this.pins.map(p => p.devIdx))];
+        deviceIndices.forEach(dIdx => {
+             const devPins = this.pins.filter(p => p.devIdx === dIdx);
+             const hasSD = devPins.some(p => ['S', 'D'].includes(p.role));
+             if (hasSD) {
+                 const hasRF = lines.some(l => l.devIdx === dIdx && l.type === 'RF');
+                 if (!hasRF) crit++;
+             }
+        });
+        return { len, cross, crit };
+    }
+}
+
+/* =========================================
+   UI & APP
+   ========================================= */
+class DeviceModel {
+    constructor(name, w, h, x, y) {
+        this.name = name; this.w = w; this.h = h; this.pos = {x, y}; this.pins = [];
+        const xr = Array.from({length:w}, (_,i) => -(w-1)/2 + i);
+        const yr = Array.from({length:h}, (_,i) => -(h-1)/2 + i);
+        xr.forEach(px => yr.forEach(py => this.pins.push({ rel:{x:px, y:py}, active:true, role:'G' })));
+        this.pins.sort((a,b) => a.rel.y - b.rel.y);
+        if(this.pins.length > 0) this.pins[0].role = 'S';
+        if(this.pins.length > 1) this.pins[this.pins.length-1].role = 'D';
+    }
+    getAbsPins() {
+        return this.pins.map((p, i) => ({ x: this.pos.x + p.rel.x, y: this.pos.y + p.rel.y, active: p.active, role: p.role, index: i }));
+    }
+    toggle(i) { this.pins[i].active = !this.pins[i].active; }
+    cycle(i) {
+        const p = this.pins[i];
+        if(p.role === 'G') this.setSmart(i, 'S'); else if(p.role === 'S') this.setSmart(i, 'D'); else p.role = 'G';
+    }
+    setSmart(i, r) {
+        if(['S','D'].includes(r)) { const old = this.pins.findIndex(p => p.role === r); if(old !== -1) this.pins[old].role = 'G'; }
+        this.pins[i].role = r;
+    }
+    snap(max) {
+        const s = (v, sz) => (sz%2===0) ? Math.round(v-0.5)+0.5 : Math.round(v);
+        this.pos.x = Math.max(0, Math.min(max, s(this.pos.x, this.w)));
+        this.pos.y = Math.max(0, Math.min(max, s(this.pos.y, this.h)));
+    }
+}
+
+class App {
+    constructor() {
+        this.canvas = document.getElementById('mainCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.scale = 50; this.offset = {x:0, y:0}; 
+        
+        // Defaults
+        this.gridSize = 7;
+        this.padCount = 6;
+        this.padDist = 2.0;
+        
+        // Initial Device
+        this.devices = [ new DeviceModel('Device', 7, 7, 3.0, 3.0) ];
+        
+        this.pads = []; this.padSt = [];
+        this.updateConfig(true); 
+
+        this.lines = []; this.highlightWire = null; this.isPadEditMode = false;
+        this.drag = { active:false, type:null, idx:-1, off:{x:0,y:0} }; this.selDev = 0;
+
+        this.setup();
+        setTimeout(() => this.resize(), 10);
+        window.addEventListener('resize', () => this.resize());
+    }
+
+    updateConfig(isInit = false) {
+        if (!isInit) {
+            this.gridSize = parseInt(document.getElementById('inp-grid-size').value) || 7;
+            this.padCount = parseInt(document.getElementById('inp-pad-count').value) || 6;
+            this.padDist = parseFloat(document.getElementById('inp-pad-dist').value) || 2.0;
+            const dw = parseInt(document.getElementById('inp-dev-w').value) || 7;
+            const dh = parseInt(document.getElementById('inp-dev-h').value) || 7;
+            const cx = (this.gridSize-1)/2;
+            this.devices = [ new DeviceModel('Device', dw, dh, cx, cx) ];
+        } else {
+             document.getElementById('inp-grid-size').value = 7;
+             document.getElementById('inp-pad-count').value = 6;
+             document.getElementById('inp-dev-w').value = 7;
+             document.getElementById('inp-dev-h').value = 7;
+             document.getElementById('inp-pad-dist').value = 2.0;
+             this.gridSize = 7; this.padCount = 6; this.padDist = 2.0;
+             this.devices[0].pos = {x:3.0, y:3.0};
+        }
+        
+        this.initPads();
+        this.padSt = new Array(this.pads.length).fill(0);
+        this.reset();
+        this.resize();
+    }
+
+    initPads() {
+        this.pads = [];
+        const max = this.gridSize - 1;
+        const n = this.padCount;
+        const margin = this.padDist;
+        const low = -margin;
+        const high = max + margin;
+        
+        let lblIdx = 1;
+        const addPad = (x, y) => {
+            this.pads.push({ x, y, w: 0.8, h: 0.8, shape: 'circle', lbl: lblIdx++ });
+        };
+
+        if (n <= 1) {
+            const mid = (low + high) / 2;
+            addPad(mid, high); addPad(high, mid); addPad(mid, low); addPad(low, mid);
+            return;
+        }
+
+        const step = (high - low) / (n - 1);
+        // Top: Left corner to before Right corner
+        for(let i=0; i<n-1; i++) addPad(low + step * i, high);
+        // Right: Right corner to before Bottom corner
+        for(let i=0; i<n-1; i++) addPad(high, high - step * i);
+        // Bottom: Bottom corner to before Left corner
+        for(let i=0; i<n-1; i++) addPad(high - step * i, low);
+        // Left: Left corner to before Top corner
+        for(let i=0; i<n-1; i++) addPad(low, low + step * i);
+    }
+
+    exportState() {
+        const state = { 
+            grid: this.gridSize, padsPerSide: this.padCount, padDist: this.padDist,
+            devices: this.devices.map(d => ({ name: d.name, w: d.w, h: d.h, pos: d.pos, pins: d.pins })),
+            pads: this.pads, padSt: this.padSt 
+        };
+        navigator.clipboard.writeText(JSON.stringify(state)).then(() => {
+            const t = document.getElementById('toast-copy'); t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000);
+        });
+    }
+
+    importState() {
+        const json = prompt("Paste config JSON:");
+        if (!json) return;
+        try {
+            const state = JSON.parse(json);
+            if(state.grid) { this.gridSize = state.grid; document.getElementById('inp-grid-size').value = state.grid; }
+            if(state.padsPerSide) { this.padCount = state.padsPerSide; document.getElementById('inp-pad-count').value = state.padsPerSide; }
+            if(state.padDist) { this.padDist = state.padDist; document.getElementById('inp-pad-dist').value = state.padDist; }
+            
+            this.initPads(); 
+            if (state.pads && state.pads.length === this.pads.length) this.pads = state.pads;
+            if (state.padSt) this.padSt = state.padSt;
+
+            if (state.devices) {
+                this.devices = state.devices.map(d => {
+                    const dev = new DeviceModel(d.name, d.w, d.h, d.pos.x, d.pos.y);
+                    if (d.pins) dev.pins = d.pins;
+                    document.getElementById('inp-dev-w').value = d.w;
+                    document.getElementById('inp-dev-h').value = d.h;
+                    return dev;
+                });
+            }
+            this.resize(); this.reset(); this.draw();
+        } catch (e) { alert("Invalid Config"); }
+    }
+
+    toScr(lx, ly) {
+        const cx = this.canvas.width/2 + this.offset.x; const cy = this.canvas.height/2 + this.offset.y;
+        const gc = (this.gridSize-1)/2;
+        return { x: cx + (lx-gc)*this.scale, y: cy - (ly-gc)*this.scale };
+    }
+    toLog(sx, sy) {
+        const cx = this.canvas.width/2 + this.offset.x; const cy = this.canvas.height/2 + this.offset.y;
+        const gc = (this.gridSize-1)/2;
+        return { x: (sx-cx)/this.scale + gc, y: gc - (sy-cy)/this.scale };
+    }
+
+    draw() {
+        const ctx = this.ctx; ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Grid
+        const gs = this.gridSize;
+        for(let i=0; i<gs; i+=2) {
+            const p1 = this.toScr(i-0.5, -0.5); const p2 = this.toScr(i+1.5, gs-0.5);
+            const x=Math.min(p1.x,p2.x), y=Math.min(p1.y,p2.y), w=Math.abs(p2.x-p1.x), h=Math.abs(p2.y-p1.y);
+            ctx.fillStyle = (i/2)%2===0 ? THEME.GRID_1 : THEME.GRID_2; ctx.fillRect(x,y,w,h);
+        }
+        const b1 = this.toScr(-0.5, -0.5), b2 = this.toScr(gs-0.5, gs-0.5);
+        ctx.strokeStyle = THEME.GRID_BORDER; ctx.lineWidth = 4;
+        ctx.strokeRect(Math.min(b1.x,b2.x), Math.min(b1.y,b2.y), Math.abs(b2.x-b1.x), Math.abs(b2.y-b1.y));
+        
+        // Pads
+        this.pads.forEach((pad, i) => {
+            const p = this.toScr(pad.x, pad.y);
+            const sw = pad.w * this.scale; const sh = pad.h * this.scale; const s = this.padSt[i];
+            if (this.isPadEditMode) {
+                ctx.beginPath();
+                if (pad.shape === 'rect') ctx.rect(p.x - sw/2 - 4, p.y - sh/2 - 4, sw + 8, sh + 8);
+                else ctx.ellipse(p.x, p.y, sw/2 + 4, sh/2 + 4, 0, 0, Math.PI*2);
+                ctx.strokeStyle = THEME.EDIT_PAD_BORDER; ctx.lineWidth = 2; ctx.setLineDash([4, 2]); ctx.stroke(); ctx.setLineDash([]);
+            }
+            if (s===2) { ctx.shadowColor = THEME.PAD_RF; ctx.shadowBlur = 10; } else { ctx.shadowColor = 'rgba(0,0,0,0.1)'; ctx.shadowBlur = 5; }
+            ctx.beginPath();
+            if (pad.shape === 'rect') ctx.roundRect(p.x - sw/2, p.y - sh/2, sw, sh, 4); else ctx.ellipse(p.x, p.y, sw/2, sh/2, 0, 0, Math.PI*2);
+            ctx.fillStyle = s===0?THEME.PAD_G : (s===1?THEME.PAD_X : THEME.PAD_RF);
+            ctx.fill(); ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth=2; ctx.stroke();
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 13px "JetBrains Mono"'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(pad.lbl, p.x, p.y+1);
+        });
+
+        // Devices
+        this.devices.forEach((dev, di) => {
+            const c = this.toScr(dev.pos.x, dev.pos.y);
+            const w = dev.w*this.scale, h = dev.h*this.scale;
+            const sel = di===this.selDev;
+            
+            ctx.save(); ctx.translate(c.x, c.y);
+            ctx.fillStyle = THEME.DEV_BODY; ctx.strokeStyle = sel ? THEME.DEV_SEL : THEME.DEV_BORDER; ctx.lineWidth = sel ? 3 : 2;
+            ctx.beginPath(); ctx.roundRect(-w/2, -h/2, w, h, 12); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#cbd5e1'; ctx.font = 'bold 16px Inter'; ctx.fillText(dev.name, 0, -h/2 - 20);
+            ctx.restore();
+
+            const hasResult = this.lines.length > 0;
+            dev.getAbsPins().forEach((pin, pi) => {
+                const p = this.toScr(pin.x, pin.y);
+                const isRF = ['S','D'].includes(pin.role);
+                ctx.beginPath();
+                if (!pin.active) {
+                    ctx.strokeStyle = THEME.PIN_OFF; ctx.lineWidth = 3; const r = 5;
+                    ctx.moveTo(p.x-r, p.y-r); ctx.lineTo(p.x+r, p.y+r); ctx.moveTo(p.x+r, p.y-r); ctx.lineTo(p.x-r, p.y+r); ctx.stroke();
+                } else {
+                    const r = hasResult ? 10 : 7;
+                    ctx.arc(p.x, p.y, r, 0, Math.PI*2); ctx.fillStyle = isRF ? THEME.PIN_RF : THEME.PIN_G;
+                    ctx.fill(); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+                    ctx.fillStyle = '#fff';
+                    if (hasResult) { ctx.font = 'bold 11px "JetBrains Mono"'; ctx.fillText(pi, p.x, p.y+1); } 
+                    else if (isRF) { ctx.font = 'bold 9px Inter'; ctx.fillText(pin.role, p.x, p.y+1); }
+                }
+            });
+        });
+
+        this.lines.forEach(l => {
+            const p1 = this.toScr(l.start.x, l.start.y); const p2 = this.toScr(l.end.x, l.end.y);
+            const isHigh = this.highlightWire && this.highlightWire.d === l.devIdx && this.highlightWire.p === l.pinIdx;
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineCap = 'round';
+            if (isHigh) { ctx.lineWidth = 6; ctx.strokeStyle = THEME.HIGHLIGHT; ctx.shadowColor = THEME.HIGHLIGHT; ctx.shadowBlur = 15; }
+            else { ctx.lineWidth = l.type==='RF'?3.5:2; ctx.strokeStyle = l.type==='RF'?THEME.WIRE_RF : THEME.WIRE_G; ctx.shadowBlur = 0; }
+            ctx.globalAlpha = isHigh ? 1.0 : 0.8; ctx.stroke(); ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.arc(p2.x, p2.y, 3, 0, Math.PI*2); ctx.fillStyle = THEME.BOND_PT; ctx.fill();
+        });
+    }
+    
+    setHighlight(dIdx, pIdx) { this.highlightWire = (dIdx === null) ? null : {d:dIdx, p:pIdx}; this.draw(); }
+
+    resize() {
+        const w = document.getElementById('canvas-wrapper'); this.canvas.width = w.clientWidth; this.canvas.height = w.clientHeight;
+        if (this.pads.length === 0) return;
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        this.pads.forEach(p => { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); });
+        
+        // Ensure Grid is also visible even if pads are close
+        minX = Math.min(minX, -1); maxX = Math.max(maxX, this.gridSize);
+        minY = Math.min(minY, -1); maxY = Math.max(maxY, this.gridSize);
+
+        const margin = 2.0; const boundsW = maxX - minX + margin*2; const boundsH = maxY - minY + margin*2;
+        this.scale = Math.min(this.canvas.width / boundsW, this.canvas.height / boundsH) * 0.95;
+        const bboxCx = (minX + maxX) / 2; const bboxCy = (minY + maxY) / 2;
+        const gridCx = (this.gridSize-1)/2;
+        this.offset.x = (gridCx - bboxCx) * this.scale; this.offset.y = (bboxCy - gridCx) * this.scale;
+        this.draw();
+    }
+    
+    setup() {
+        const getM = (e) => { const r = this.canvas.getBoundingClientRect(); return this.toLog(e.clientX-r.left, e.clientY-r.top); };
+        document.getElementById('chk-move-pads').addEventListener('change', (e) => {
+            this.isPadEditMode = e.target.checked;
+            document.getElementById('edit-mode-overlay').style.display = this.isPadEditMode ? 'block' : 'none';
+            this.draw();
+        });
+        this.canvas.addEventListener('mousedown', e => {
+            const m = getM(e); let draw = false;
+            if (this.isPadEditMode && e.button === 0) {
+                let hitPad = -1;
+                this.pads.forEach((p, i) => { if(dist(m.x,m.y,p.x,p.y) < Math.max(p.w, p.h)/2 + 0.2) hitPad = i; });
+                if (hitPad !== -1) { this.drag = { active:true, type:'PAD', idx:hitPad, off:{x:this.pads[hitPad].x-m.x, y:this.pads[hitPad].y-m.y} }; return; }
+            }
+            this.devices.forEach((d, di) => {
+                d.getAbsPins().forEach((p, pi) => {
+                    if(dist(m.x, m.y, p.x, p.y) < 0.5) { if(e.button===0 && !this.isPadEditMode) { d.toggle(pi); this.reset(); draw = true; } }
+                });
+            });
+            if(draw) return this.draw();
+            if (!this.isPadEditMode) {
+                this.pads.forEach((p, i) => {
+                    if(dist(m.x, m.y, p.x, p.y) < Math.max(p.w, p.h)/2) { if (e.button === 0) { this.padSt[i] = (this.padSt[i]+1)%3; this.reset(); draw=true; } }
+                });
+                if(draw) return this.draw();
+                this.devices.forEach((d, i) => {
+                    if(Math.abs(m.x-d.pos.x)<d.w/2 && Math.abs(m.y-d.pos.y)<d.h/2) {
+                        if (e.button === 0) { this.selDev = i; this.drag = {active:true, type:'DEV', idx:i, off:{x:d.pos.x-m.x, y:d.pos.y-m.y}}; this.reset(); this.draw(); }
+                    }
+                });
+            }
+        });
+        this.canvas.addEventListener('contextmenu', e => {
+            e.preventDefault(); const m = getM(e);
+            if (this.isPadEditMode) {
+                let hitPad = -1;
+                this.pads.forEach((p, i) => { if(dist(m.x,m.y,p.x,p.y) < Math.max(p.w, p.h)/2 + 0.2) hitPad = i; });
+                if (hitPad !== -1) { const p = this.pads[hitPad]; p.shape = (p.shape === 'circle') ? 'rect' : 'circle'; if(p.shape==='rect' && p.w===p.h) p.w = 1.2; if(p.shape==='circle') { p.w = 0.8; p.h = 0.8; } this.draw(); }
+                return;
+            }
+            this.devices.forEach((d, di) => {
+                d.getAbsPins().forEach((p, pi) => { if(dist(m.x, m.y, p.x, p.y)<0.5) { d.cycle(pi); this.reset(); this.draw(); } });
+            });
+        });
+        this.canvas.addEventListener('wheel', e => {
+            if (!this.isPadEditMode) return;
+            if (e.ctrlKey) e.preventDefault(); const m = getM(e);
+            let hitPad = -1; this.pads.forEach((p, i) => { if(dist(m.x,m.y,p.x,p.y) < Math.max(p.w, p.h)/2 + 1.0) hitPad = i; });
+            if (hitPad !== -1) {
+                e.preventDefault(); const pad = this.pads[hitPad]; const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                if (e.shiftKey) { pad.w = Math.max(0.2, pad.w + delta); } else if (e.ctrlKey) { pad.h = Math.max(0.2, pad.h + delta); } 
+                else { pad.w = Math.max(0.2, pad.w + delta); pad.h = Math.max(0.2, pad.h + delta); }
+                this.draw();
+            }
+        }, {passive: false});
+        this.canvas.addEventListener('mousemove', e => {
+            if(this.drag.active) {
+                const m = getM(e);
+                if (this.drag.type === 'DEV') { const d = this.devices[this.drag.idx]; d.pos.x = m.x + this.drag.off.x; d.pos.y = m.y + this.drag.off.y; } 
+                else if (this.drag.type === 'PAD') { const p = this.pads[this.drag.idx]; p.x = m.x + this.drag.off.x; p.y = m.y + this.drag.off.y; this.reset(); }
+                this.draw();
+            }
+        });
+        this.canvas.addEventListener('mouseup', () => { if(this.drag.active) { if (this.drag.type === 'DEV') this.devices[this.drag.idx].snap(this.gridSize-1); this.drag.active = false; this.draw(); } });
+        
+        document.getElementById('btn-calc').addEventListener('click', () => {
+            const btn = document.getElementById('btn-calc'); const orig = 'Optimize Layout (SA)';
+            btn.innerHTML = '<span style="display:inline-block;animation:spin 1s infinite linear">⚙️</span> Calculation...'; btn.style.opacity = "0.7"; btn.style.pointerEvents = "none";
+            setTimeout(() => { 
+                const optimizer = new LayoutOptimizer(this.devices, this.pads, this.padSt); const res = optimizer.solve();
+                this.lines = res.lines; this.updateUI(res.stats); this.draw();
+                btn.innerHTML = orig; btn.style.opacity = "1"; btn.style.pointerEvents = "auto";
+                if(res.stats.cross === 0 && res.stats.crit === 0) {
+                    const t = document.createElement('div'); t.className = 'toast success show'; t.innerHTML = '<span>✨</span> Optimized Perfectly!';
+                    document.getElementById('toast-container').appendChild(t); setTimeout(()=>t.remove(), 3000);
+                }
+            }, 50);
+        });
+    }
+
+    reset() {
+        this.lines = []; document.getElementById('connection-list').innerHTML = '<div style="padding:20px; text-align:center; color:#94a3b8; font-size:0.8rem; opacity:0.6;">Ready.</div>';
+        ['toast-cross', 'toast-rf'].forEach(id => document.getElementById(id).classList.remove('show'));
+    }
+
+    updateUI(stats) {
+        const el = (id, v, bad) => { const d = document.getElementById(id); d.innerText = v; d.className = 'stat-val ' + (bad?'bad':'good'); };
+        el('val-cross', stats.cross, stats.cross>0); el('val-crit', stats.crit, stats.crit>0); document.getElementById('val-len').innerText = stats.len.toFixed(1);
+        document.getElementById('toast-cross').classList.toggle('show', stats.cross > 0); document.getElementById('toast-rf').classList.toggle('show', stats.crit > 0);
+
+        const list = document.getElementById('connection-list'); list.innerHTML = '';
+        this.devices.forEach((d, di) => {
+            const lns = this.lines.filter(l => l.devIdx === di); if(lns.length===0) return;
+            lns.sort((a,b) => a.pinIdx - b.pinIdx);
+            const div = document.createElement('div');
+            const hasSD = lns.some(l=>['S','D'].includes(l.role)); const hasRF = lns.some(l=>l.type==='RF'); const rfErr = hasSD && !hasRF;
+            div.className = 'dev-card' + (rfErr ? ' error' : '');
+            let html = `<div class="dev-title"><span>${d.name}</span>${rfErr ? '<span style="color:#ef4444;font-size:0.7rem">NO RF</span>' : ''}</div>`;
+            lns.forEach(l => {
+                const rClass = l.role==='G' ? 'role-G' : 'role-S';
+                html += `<div class="wire-row" onmouseenter="app.setHighlight(${l.devIdx}, ${l.pinIdx})" onmouseleave="app.setHighlight(null, null)">
+                    <div><span class="role-tag ${rClass}">${l.role}</span> Pin ${l.pinIdx}</div><div style="color:#fff">Pad ${l.padLbl}</div></div>`;
+            });
+            div.innerHTML = html; list.appendChild(div);
+        });
+    }
+}
+
+const app = new App();
+window.app = app;
+</script>
+</body>
+</html>
