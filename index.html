@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bonding Optimizer v7 (Deep Optimization)</title>
+    <title>Bonding Optimizer v8 (Stable)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
@@ -38,7 +38,6 @@
         .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
         input:checked + .slider { background-color: var(--warning); }
         #chk-strict-rf:checked + .slider { background-color: var(--accent); }
-        /* HQ Mode Toggle Color */
         #chk-hq-mode:checked + .slider { background-color: #a855f7; } 
         input:checked + .slider:before { transform: translateX(18px); }
         .toggle-label { font-size: 0.85rem; font-weight: 600; color: #fff; }
@@ -138,7 +137,7 @@
             </label>
             <div style="display:flex; flex-direction:column;">
                 <span class="toggle-label">Deep Optimization</span>
-                <span style="font-size:0.65rem; color:#a855f7;">Max Effort Mode</span>
+                <span style="font-size:0.65rem; color:#a855f7;">Stable & Best Score</span>
             </div>
         </div>
         <div id="hq-options" class="hq-options">
@@ -226,7 +225,7 @@ const getNearestPointOnPad = (src, pad) => {
     return { x: nx, y: ny };
 };
 
-// --- ASYNC OPTIMIZER (STRICT 1-TO-1 + TIME LIMIT) ---
+// --- STABLE & DEEP OPTIMIZER ---
 class LayoutOptimizer {
     constructor(devices, pads, padStatus, strictRF) {
         this.pins = []; this.pads = []; 
@@ -252,7 +251,6 @@ class LayoutOptimizer {
                 return true; 
             }).map(p => p.idx);
 
-            // Fallback for strict RF missing
             if (['S','D'].includes(pin.role) && strictRF && allowed.length === 0) {
                 return this.pads.filter(pad => pad.status !== 0).map(p => p.idx);
             }
@@ -261,7 +259,6 @@ class LayoutOptimizer {
         this.strictRF = strictRF;
     }
 
-    // Accepts timeLimit in ms. If 0, uses default fast mode.
     async solve(timeLimitMs) {
         const N = this.pins.length;
         if (N === 0) return { lines: [], stats: { cross:0, crit:0, len:0 } };
@@ -270,9 +267,7 @@ class LayoutOptimizer {
              const t = document.getElementById('toast-pad'); t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 4000);
         }
 
-        let bestGlobalAssign = null; let bestGlobalCost = Infinity; 
-        
-        // Run proper SA with time limit
+        // Run the solver. Even in "Fast" mode, we use the logic but with short time.
         const result = await this.runSAProper(N, timeLimitMs);
         
         const finalLines = this.resolveLandingPoints(result.assign);
@@ -281,26 +276,44 @@ class LayoutOptimizer {
     }
 
     async runSAProper(N, duration) {
-        // Init Greedy
+        // Init Greedy with Randomness for diversification
         let currentAssign = new Array(N).fill(-1); 
         let usedPads = new Set();
         
-        const pinOrder = this.pins.map(p => p.idx).sort((a,b) => {
-            const ra = ['S','D'].includes(this.pins[a].role); const rb = ['S','D'].includes(this.pins[b].role);
-            return (ra === rb) ? 0 : (ra ? -1 : 1);
-        });
+        // Randomize order for initial assignment to avoid bias
+        const pinIndices = this.pins.map(p => p.idx);
+        // Shuffle
+        for (let i = pinIndices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pinIndices[i], pinIndices[j]] = [pinIndices[j], pinIndices[i]];
+        }
         
-        pinOrder.forEach(pIdx => {
+        // Priority: Assign RF (S/D) first even in random order? No, let's stick to simple greedy
+        // Better: Sort by "Most Constrained First" (Fewest allowed pads)
+        pinIndices.sort((a,b) => (this.allowedPads[a].length - this.allowedPads[b].length));
+
+        pinIndices.forEach(pIdx => {
             const pin = this.pins[pIdx]; const allowed = this.allowedPads[pIdx];
             let bestP = -1, minCost = Infinity;
+            
             if(allowed && allowed.length > 0) {
-                allowed.forEach(padIdx => {
-                    if (usedPads.has(padIdx)) return;
-                    let c = dist(pin.x, pin.y, this.pads[padIdx].x, this.pads[padIdx].y);
-                    if (['S','D'].includes(pin.role) && this.pads[padIdx].status === 2) c -= 5000;
-                    if (c < minCost) { minCost = c; bestP = padIdx; }
-                });
-                if (bestP !== -1) { currentAssign[pIdx] = bestP; usedPads.add(bestP); }
+                // Find best UNUSED pad
+                const available = allowed.filter(pid => !usedPads.has(pid));
+                if (available.length > 0) {
+                    available.forEach(padIdx => {
+                        let c = dist(pin.x, pin.y, this.pads[padIdx].x, this.pads[padIdx].y);
+                        if (['S','D'].includes(pin.role) && this.pads[padIdx].status === 2) c -= 5000;
+                        if (c < minCost) { minCost = c; bestP = padIdx; }
+                    });
+                } else {
+                    // Try to pick ANY allowed, even if used (SA will fix)
+                     bestP = allowed[Math.floor(Math.random() * allowed.length)];
+                }
+                
+                if (bestP !== -1) { 
+                    currentAssign[pIdx] = bestP; 
+                    usedPads.add(bestP); 
+                }
             }
         });
 
@@ -310,65 +323,70 @@ class LayoutOptimizer {
         const startTime = Date.now();
         const endTime = startTime + duration;
         
-        // SA Parameters
-        const T_INITIAL = 100.0;
-        const T_FINAL = 0.01;
+        // Parameters
+        const T_INITIAL = 50.0;
+        const T_FINAL = 0.001; // Go very low for stability
         
-        // Loop controls
         let loopCount = 0;
-        const YIELD_INTERVAL = 200; // Yield every X iterations to update UI
+        const YIELD_INTERVAL = 400; 
 
         while (true) {
             const now = Date.now();
             if (now >= endTime) break;
 
-            // Calculate progress (0.0 to 1.0)
             const progress = (now - startTime) / duration;
-            // Exponential cooling schedule
+            // Slower cooling curve (Quadratic or Exponential)
             const T = T_INITIAL * Math.pow(T_FINAL / T_INITIAL, progress);
 
-            // Yield to UI loop
             if (loopCount++ % YIELD_INTERVAL === 0) {
-                 // Update button text with time remaining
                  const remaining = Math.ceil((endTime - now) / 1000);
-                 document.getElementById('btn-calc').innerHTML = `... ${remaining}s`;
+                 const pct = Math.floor(progress * 100);
+                 document.getElementById('btn-calc').innerHTML = `... ${pct}% (${remaining}s)`;
                  await new Promise(r => setTimeout(r, 0)); 
             }
 
-            // Neighbor generation (Swap or Move)
+            // --- MUTATION ---
             const newAssign = [...currentAssign]; 
             const i = Math.floor(Math.random() * N); // Pick random pin
-            
             const allowed = this.allowedPads[i];
+            
             if (!allowed || allowed.length === 0) continue;
 
             const padNew = allowed[Math.floor(Math.random() * allowed.length)];
             const ownerJ = newAssign.indexOf(padNew); 
 
-            // Strict 1-to-1 Logic
+            // Conflict Resolution (1-to-1)
             if (ownerJ === -1) {
-                // Move to empty
+                // Empty -> Move
                 newAssign[i] = padNew;
             } else {
-                // Swap if compatible
+                // Occupied -> Swap?
                 const padOldI = newAssign[i]; 
+                
+                // Only swap if J can go to I's old spot
                 if (padOldI !== -1 && this.allowedPads[ownerJ].includes(padOldI)) {
-                    newAssign[i] = padNew;
-                    newAssign[ownerJ] = padOldI;
+                     newAssign[i] = padNew;
+                     newAssign[ownerJ] = padOldI;
                 } else {
-                    // Kick out J (Optimization will likely reject this unless very beneficial)
-                    newAssign[i] = padNew;
-                    newAssign[ownerJ] = -1;
+                    // If not swappable, maybe just Kick J?
+                    // Only do this at high temp, otherwise we get stuck with unassigned pins
+                    if (Math.random() < 0.1 || currentAssign.includes(-1)) { 
+                         newAssign[i] = padNew;
+                         newAssign[ownerJ] = -1; // J becomes unassigned
+                    }
                 }
             }
             
             const newCostVal = this.calculateCostValue(newAssign);
             const delta = newCostVal - currentCostVal;
 
-            // Metropolis Criterion
             if (delta < 0 || Math.random() < Math.exp(-delta / T)) {
                 currentAssign = newAssign; currentCostVal = newCostVal;
-                if (currentCostVal < bestCostVal) { bestAssign = [...currentAssign]; bestCostVal = currentCostVal; }
+                // Strict check for best solution
+                if (currentCostVal < bestCostVal) { 
+                    bestAssign = [...currentAssign]; 
+                    bestCostVal = currentCostVal; 
+                }
             }
         }
         
@@ -376,32 +394,38 @@ class LayoutOptimizer {
     }
 
     calculateCostValue(assign) {
-        const W_CRIT = 1e9; const W_CROSS = 1e6; const W_PREF = 1e4; const W_LEN = 1.0; 
+        // HEAVY PENALTIES for stability
+        const W_CRIT = 1e9;   // Missing connection
+        const W_CROSS = 1e8;  // Crossing (Huge penalty to force non-crossing)
+        const W_PREF = 1e5;   // RF Preference
+        const W_LEN = 1.0;    // Length
+
         let len = 0, prefPenalty = 0, crit = 0, cross = 0;
         const segments = [];
         
         for(let i=0; i<assign.length; i++) {
             const padIdx = assign[i];
             if (padIdx === -1) { crit++; continue; } 
+
             const pin = this.pins[i]; const pad = this.pads[padIdx];
             len += dist(pin.x, pin.y, pad.x, pad.y);
             segments.push({ x1: pin.x, y1: pin.y, x2: pad.x, y2: pad.y });
+            
             if (['S','D'].includes(pin.role) && pad.status !== 2) prefPenalty++;
         }
         
-        // Full crossing check (expensive but necessary for quality)
-        // In deep mode we can afford slightly more checks, but N^2 is fine for < 100 wires
+        // Full Check
+        // N is usually small (<100), so N^2 is fine for robust optimization
         const sc = segments.length;
-        if (sc < 200) {
-            for(let i=0; i<sc; i++) {
-                for(let j=i+1; j<sc; j++) {
-                    if(checkIntersection(
-                        {x:segments[i].x1, y:segments[i].y1}, {x:segments[i].x2, y:segments[i].y2}, 
-                        {x:segments[j].x1, y:segments[j].y1}, {x:segments[j].x2, y:segments[j].y2}
-                    )) cross++;
-                }
+        for(let i=0; i<sc; i++) {
+            for(let j=i+1; j<sc; j++) {
+                if(checkIntersection(
+                    {x:segments[i].x1, y:segments[i].y1}, {x:segments[i].x2, y:segments[i].y2}, 
+                    {x:segments[j].x1, y:segments[j].y1}, {x:segments[j].x2, y:segments[j].y2}
+                )) cross++;
             }
         }
+
         return (crit * W_CRIT) + (cross * W_CROSS) + (prefPenalty * W_PREF) + (len * W_LEN);
     }
 
@@ -751,13 +775,12 @@ class App {
             const btn = document.getElementById('btn-calc'); const orig = 'Optimize';
             const strictRF = document.getElementById('chk-strict-rf').checked;
             
-            // Check deep optimization settings
             const isHQ = document.getElementById('chk-hq-mode').checked;
             let timeLimit = 0;
             if (isHQ) {
-                timeLimit = (parseInt(document.getElementById('inp-time-limit').value) || 10) * 1000; // to ms
+                timeLimit = (parseInt(document.getElementById('inp-time-limit').value) || 10) * 1000; 
             } else {
-                timeLimit = 50; // Fast mode (~0.05s)
+                timeLimit = 50; 
             }
             
             const hasBluePad = app.padSt.includes(2);
